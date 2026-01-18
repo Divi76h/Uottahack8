@@ -18,7 +18,41 @@ EVENT_TYPE_MAP = {
     "action_items": "email.action_items",
     "tone_analyzed": "email.tone_analyzed",
     "url_scanned": "email.url_scanned",
+    "chat_response": "email.chat_response",
 }
+
+
+def _handle_chat_response(msg, redis_client):
+    """Handle chat response messages and push to Redis for SSE delivery."""
+    # Topic format: email/chat_response/{user_id}/{request_id}
+    parts = [p for p in (msg.topic or "").split("/") if p]
+    if len(parts) < 4:
+        print(f"[CHAT] Invalid topic format: {msg.topic}")
+        return
+    
+    user_id = _extract_int(parts[2])
+    request_id = parts[3]
+    
+    if not user_id:
+        print(f"[CHAT] Could not extract user_id from: {parts[2]}")
+        return
+    
+    # Decode the response
+    try:
+        response_text = msg.payload.decode("utf-8")
+    except Exception:
+        response_text = msg.payload.decode("utf-8", errors="ignore")
+    
+    print(f"[CHAT] Got response for user {user_id}, request {request_id}: {response_text[:100]}...")
+    
+    # Push to Redis for SSE
+    channel = f"events:{user_id}"
+    event_payload = {
+        "event_type": "email.chat_response",
+        "request_id": request_id,
+        "response": response_text,
+    }
+    redis_client.publish(channel, json.dumps(event_payload, ensure_ascii=False))
 
 
 def _extract_int(s: str) -> int | None:
@@ -145,7 +179,7 @@ class Command(BaseCommand):
         def on_connect(c, userdata, flags, rc, properties=None):
             self.stdout.write(self.style.SUCCESS(f"Connected to MQTT broker rc={rc}"))
             # Subscribe to all processed events
-            for ev in ["spam_classified", "priority_assigned", "summary", "action_items", "tone_analyzed", "url_scanned"]:
+            for ev in ["spam_classified", "priority_assigned", "summary", "action_items", "tone_analyzed", "url_scanned", "chat_response"]:
                 topic = f"{prefix}/{ev}/#"
                 c.subscribe(topic, qos=0)
                 print(f"[SUBSCRIBE] Subscribed to: {topic}")
@@ -155,6 +189,12 @@ class Command(BaseCommand):
 
         def on_message(c, userdata, msg):
             print(f"Received message on topic: {msg.topic}")
+            
+            # Handle chat responses separately (they use request_id not email_id)
+            if "/chat_response/" in msg.topic:
+                _handle_chat_response(msg, r)
+                return
+            
             meta = _parse_topic(msg.topic)
             if not meta:
                 return

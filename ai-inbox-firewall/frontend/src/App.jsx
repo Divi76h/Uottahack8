@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 
 // Toast notification component
 function Toast({ toasts, removeToast }) {
@@ -24,6 +24,71 @@ function Toast({ toasts, removeToast }) {
       ))}
     </div>
   )
+}
+
+// Debounce hook
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value)
+  
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay)
+    return () => clearTimeout(timer)
+  }, [value, delay])
+  
+  return debouncedValue
+}
+
+// Format AI response with markdown-like formatting
+function formatAiResponse(text, emails = []) {
+  if (!text) return '';
+  
+  let formatted = text
+    // Escape HTML first
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  
+  // Convert email IDs to clickable links (matches patterns like "ID: 5" or "id 5" or "#5" or just standalone numbers that look like IDs)
+  // First, find email IDs mentioned like "ID: 5", "id: 5", "Email ID: 5", "email #5"
+  formatted = formatted.replace(/(?:email\s*)?(?:id)?[:\s#]*(\d+)/gi, (match, id) => {
+    const emailId = parseInt(id);
+    const email = emails.find(e => e.id === emailId);
+    if (email) {
+      return `<span class="ai-email-id-link" data-email-id="${emailId}" title="${email.subject}">📧 ${email.subject.substring(0, 30)}${email.subject.length > 30 ? '...' : ''}</span>`;
+    }
+    return match;
+  });
+  
+  formatted = formatted
+    // Bold: **text** or __text__
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    // Italic: *text* or _text_
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/_([^_]+)_/g, '<em>$1</em>')
+    // Code: `code`
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    // Numbered lists: 1. item
+    .replace(/^(\d+)\.\s+(.+)$/gm, '<li class="numbered">$2</li>')
+    // Bullet points: - item or * item
+    .replace(/^[-*•]\s+(.+)$/gm, '<li>$1</li>')
+    // Headers: ### header
+    .replace(/^###\s+(.+)$/gm, '<h4>$1</h4>')
+    .replace(/^##\s+(.+)$/gm, '<h3>$1</h3>')
+    .replace(/^#\s+(.+)$/gm, '<h3>$1</h3>')
+    // Line breaks
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br/>');
+  
+  // Wrap lists in ul tags
+  formatted = formatted.replace(/(<li.*?<\/li>)+/g, '<ul>$&</ul>');
+  
+  // Wrap in paragraph if not already wrapped
+  if (!formatted.startsWith('<')) {
+    formatted = '<p>' + formatted + '</p>';
+  }
+  
+  return formatted;
 }
 
 function api(path, opts = {}) {
@@ -61,6 +126,16 @@ export default function App() {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [aiEnabled, setAiEnabled] = useState(true)
+  const [aiResponse, setAiResponse] = useState(null)
+  const [isAiLoading, setIsAiLoading] = useState(false)
+  
+  const debouncedSearch = useDebounce(searchQuery, 300)
+
   // Toast notifications
   const [toasts, setToasts] = useState([])
   
@@ -96,6 +171,48 @@ export default function App() {
         setAllActionItems(await res.json())
       }
     },
+    searchEmails: async (query) => {
+      if (!query.trim()) {
+        setSearchResults([])
+        return []
+      }
+      setIsSearching(true)
+      try {
+        const res = await authedApi(token, `/search/?q=${encodeURIComponent(query)}`)
+        if (res.ok) {
+          const results = await res.json()
+          setSearchResults(results)
+          return results
+        }
+      } finally {
+        setIsSearching(false)
+      }
+      return []
+    },
+    sendChatQuery: async (query) => {
+      if (!query.trim()) return null
+      setIsAiLoading(true)
+      setAiResponse(null)
+      try {
+        const res = await authedApi(token, '/chat/', {
+          method: 'POST',
+          body: JSON.stringify({ query })
+        })
+        if (res.ok) {
+          const data = await res.json()
+          // Response will come via SSE, keep loading state
+          return data
+        } else {
+          setIsAiLoading(false)
+          setAiResponse({ response: 'Failed to send query', error: true })
+        }
+      } catch (e) {
+        console.error('Chat query failed:', e)
+        setIsAiLoading(false)
+        setAiResponse({ response: 'Failed to send query', error: true })
+      }
+      return null
+    },
     toggleActionItem: async (emailId, index) => {
       const res = await authedApi(token, `/action-items/${emailId}/${index}/toggle/`, {
         method: 'PATCH'
@@ -109,6 +226,25 @@ export default function App() {
       }
     }
   }), [token])
+
+  // Debounced text search effect (live as you type)
+  useEffect(() => {
+    if (!token || !debouncedSearch) {
+      setSearchResults([])
+      return
+    }
+    
+    // Text search only (fast, live updates)
+    authed.searchEmails(debouncedSearch)
+  }, [debouncedSearch, token])
+
+  // Handle Enter key for AI search
+  const handleSearchKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' && searchQuery.trim() && aiEnabled) {
+      e.preventDefault()
+      authed.sendChatQuery(searchQuery.trim())
+    }
+  }, [searchQuery, aiEnabled, authed])
 
   useEffect(() => {
     if (!token) return
@@ -134,6 +270,19 @@ export default function App() {
     es.addEventListener('email.action_items', () => { authed.refreshEmails(); authed.refreshActionItems(); })
     es.addEventListener('email.tone_analyzed', () => authed.refreshEmails())
     es.addEventListener('email.url_scanned', () => authed.refreshEmails())
+    
+    // Handle AI chat responses
+    es.addEventListener('email.chat_response', (ev) => {
+      try {
+        const data = JSON.parse(ev.data)
+        console.log('[SSE] Chat response received:', data)
+        setIsAiLoading(false)
+        setAiResponse({ response: data.response, request_id: data.request_id })
+      } catch (e) {
+        console.error('Failed to parse chat response:', e)
+        setIsAiLoading(false)
+      }
+    })
 
     return () => es.close()
   }, [token, showToast])
@@ -289,6 +438,120 @@ export default function App() {
                 + New Message
               </button>
             </header>
+
+            {/* AI Search Bar */}
+            <div className="ai-search-container" style={{ padding: '0 2rem' }}>
+              <div className="ai-search-wrapper">
+                <input
+                  type="text"
+                  className="ai-search-input"
+                  placeholder={aiEnabled ? "Search emails... (press Enter to ask AI)" : "Search emails..."}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={handleSearchKeyDown}
+                />
+                <span className="ai-search-icon">🔍</span>
+                <button 
+                  className={`ai-search-sparkle ${aiEnabled ? 'active' : ''}`}
+                  onClick={() => setAiEnabled(!aiEnabled)}
+                  title={aiEnabled ? 'AI search enabled - press Enter to ask' : 'AI search disabled'}
+                >
+                  <span className="sparkle-icon">✨</span>
+                  AI
+                </button>
+              </div>
+
+              {/* AI Response */}
+              {(isAiLoading || aiResponse) && aiEnabled && (
+                <div className="ai-chat-response">
+                  <div className="ai-chat-header">
+                    <span className="sparkle-icon">✨</span>
+                    AI Assistant
+                  </div>
+                  {isAiLoading ? (
+                    <div className="ai-chat-loading">
+                      <span>Thinking</span>
+                      <div className="dots">
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                        <div className="dot"></div>
+                      </div>
+                    </div>
+                  ) : aiResponse ? (
+                    <>
+                      <div 
+                        className="ai-chat-text" 
+                        dangerouslySetInnerHTML={{ 
+                          __html: formatAiResponse(aiResponse.message || aiResponse.response || 'Processing your query...', emails) 
+                        }}
+                        onClick={(e) => {
+                          // Handle clicks on email ID links
+                          if (e.target.classList.contains('ai-email-id-link')) {
+                            const emailId = parseInt(e.target.dataset.emailId);
+                            if (emailId) setSelectedId(emailId);
+                          }
+                        }}
+                      />
+                      {/* Show related emails if any match subjects mentioned */}
+                      {(() => {
+                        const responseText = aiResponse.message || aiResponse.response || '';
+                        const mentionedEmails = emails.filter(e => 
+                          responseText.toLowerCase().includes(e.subject.toLowerCase().substring(0, 20))
+                        ).slice(0, 5);
+                        return mentionedEmails.length > 0 ? (
+                          <div className="ai-chat-emails">
+                            <div className="ai-chat-emails-title">📧 Related Emails:</div>
+                            {mentionedEmails.map(e => (
+                              <span 
+                                key={e.id} 
+                                className="ai-chat-email-link"
+                                onClick={() => setSelectedId(e.id)}
+                              >
+                                {e.subject.substring(0, 40)}{e.subject.length > 40 ? '...' : ''}
+                              </span>
+                            ))}
+                          </div>
+                        ) : null;
+                      })()}
+                    </>
+                  ) : null}
+                </div>
+              )}
+
+              {/* Text Search Results */}
+              {searchQuery && searchResults.length > 0 && (
+                <div className="search-results">
+                  <div className="search-results-header">
+                    <span>📋 {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}</span>
+                    {isSearching && <span style={{ fontSize: '0.75rem' }}>Searching...</span>}
+                  </div>
+                  {searchResults.map((email) => (
+                    <div 
+                      key={email.id} 
+                      className="search-result-item"
+                      onClick={() => { setSelectedId(email.id); }}
+                    >
+                      <div className="search-result-subject">{email.subject}</div>
+                      <div className="search-result-meta">
+                        From: {email.sender_username || 'unknown'} • {email.spam_label} • {email.priority || 'unrated'}
+                      </div>
+                      <div className="search-result-snippet">
+                        {email.summary || email.body?.substring(0, 100) + '...'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* No results */}
+              {searchQuery && !isSearching && searchResults.length === 0 && (
+                <div className="search-results">
+                  <div className="no-results">
+                    No emails match "{searchQuery}"
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="inbox-container">
               {/* Email List */}

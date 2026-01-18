@@ -1,10 +1,12 @@
 import json
 import time
+import uuid
 from typing import Iterable
 
 import redis
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.http import HttpResponse, JsonResponse, StreamingHttpResponse
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -126,6 +128,93 @@ def action_item_toggle(request, email_id: int, item_index: int):
         email.save(update_fields=['action_items'])
     
     return Response({'done': item.get('done', False), 'email_id': email_id, 'index': item_index})
+
+
+@api_view(['GET'])
+def search_emails(request):
+    """Search emails by text query (subject, body, sender, summary, action items).
+    Also searches for individual words > 3 characters."""
+    query = request.GET.get('q', '').strip()
+    
+    if not query:
+        return Response([])
+    
+    # Build list of search terms: full query + individual words > 3 chars
+    search_terms = [query]
+    words = query.split()
+    for word in words:
+        word = word.strip()
+        if len(word) > 3 and word not in search_terms:
+            search_terms.append(word)
+    
+    # Build filter using Q objects for OR matching across multiple fields and terms
+    combined_q = Q()
+    for term in search_terms:
+        combined_q |= (
+            Q(subject__icontains=term) |
+            Q(body__icontains=term) |
+            Q(sender__username__icontains=term) |
+            Q(summary__icontains=term) |
+            Q(spam_reason__icontains=term) |
+            Q(priority_reason__icontains=term) |
+            Q(tone_explanation__icontains=term)
+        )
+    
+    emails_qs = Email.objects.filter(owner=request.user).filter(combined_q).distinct().order_by('-created_at')[:50]
+    
+    return Response(EmailSerializer(emails_qs, many=True).data)
+
+
+@api_view(['POST'])
+def chat_query(request):
+    """
+    Send a natural language query to the EmailQueryAgent via Solace.
+    Publishes to email/chat/{user_id}/{request_id} topic.
+    Response comes back via SSE on email.chat_response event.
+    """
+    query = request.data.get('query', '').strip()
+    
+    if not query:
+        return Response({'detail': 'Query is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Gather email context for the AI agent
+    emails_qs = Email.objects.filter(owner=request.user).order_by('-created_at')[:20]
+    emails_context = []
+    for e in emails_qs:
+        emails_context.append({
+            'id': e.id,
+            'subject': e.subject,
+            'body': e.body[:500],  # Truncate body for context
+            'sender': e.sender.username if e.sender else None,
+            'spam_label': e.spam_label,
+            'priority': e.priority,
+            'summary': e.summary,
+            'tone_emotion': e.tone_emotion,
+            'action_items': e.action_items,
+            'created_at': e.created_at.isoformat(),
+        })
+    
+    # Generate a unique request ID
+    request_id = str(uuid.uuid4())
+    
+    # Prepare payload for SAM agent
+    payload = {
+        'query': query,
+        'emails': emails_context,
+    }
+    
+    # Publish to chat topic - SAM gateway will route to EmailQueryAgent
+    chat_topic = topic('chat', str(request.user.id), request_id)
+    publish_json(chat_topic, payload, qos=0)
+    
+    print(f"[CHAT] Published query to {chat_topic}: {query[:50]}...")
+    
+    # Return immediately - response will come via SSE
+    return Response({
+        'status': 'processing',
+        'request_id': request_id,
+        'message': 'Query sent to AI assistant. Response will appear shortly.',
+    })
 
 
 def _sse_format(event: str, data: dict) -> str:
