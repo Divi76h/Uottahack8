@@ -81,6 +81,53 @@ def email_detail(request, email_id: int):
     return Response(EmailSerializer(email).data)
 
 
+@api_view(['GET'])
+def action_items(request):
+    """Get all action items across all emails for the current user."""
+    emails_qs = Email.objects.filter(owner=request.user).exclude(action_items__isnull=True)
+    
+    all_items = []
+    for email in emails_qs:
+        items = email.action_items
+        if not isinstance(items, list):
+            continue
+        for idx, item in enumerate(items):
+            if isinstance(item, dict):
+                all_items.append({
+                    'email_id': email.id,
+                    'email_subject': email.subject,
+                    'sender_username': email.sender.username if email.sender else None,
+                    'index': idx,
+                    'text': item.get('text', ''),
+                    'due': item.get('due'),
+                    'assignee': item.get('assignee'),
+                    'done': item.get('done', False),
+                })
+    
+    return Response(all_items)
+
+
+@api_view(['PATCH'])
+def action_item_toggle(request, email_id: int, item_index: int):
+    """Toggle the done status of an action item."""
+    try:
+        email = Email.objects.get(id=email_id, owner=request.user)
+    except Email.DoesNotExist:
+        return Response({'detail': 'Email not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    items = email.action_items
+    if not isinstance(items, list) or item_index >= len(items):
+        return Response({'detail': 'Action item not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    item = items[item_index]
+    if isinstance(item, dict):
+        item['done'] = not item.get('done', False)
+        email.action_items = items
+        email.save(update_fields=['action_items'])
+    
+    return Response({'done': item.get('done', False), 'email_id': email_id, 'index': item_index})
+
+
 def _sse_format(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 

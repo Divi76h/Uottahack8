@@ -54,6 +54,8 @@ export default function App() {
 
   const [emails, setEmails] = useState([])
   const [selectedId, setSelectedId] = useState(null)
+  const [activeView, setActiveView] = useState('inbox')
+  const [allActionItems, setAllActionItems] = useState([])
 
   const [toUser, setToUser] = useState('')
   const [subject, setSubject] = useState('')
@@ -87,12 +89,31 @@ export default function App() {
       if (res.ok) {
         setEmails(await res.json())
       }
+    },
+    refreshActionItems: async () => {
+      const res = await authedApi(token, '/action-items/')
+      if (res.ok) {
+        setAllActionItems(await res.json())
+      }
+    },
+    toggleActionItem: async (emailId, index) => {
+      const res = await authedApi(token, `/action-items/${emailId}/${index}/toggle/`, {
+        method: 'PATCH'
+      })
+      if (res.ok) {
+        // Refresh both emails and action items to update UI
+        const emailsRes = await authedApi(token, '/emails/')
+        if (emailsRes.ok) setEmails(await emailsRes.json())
+        const itemsRes = await authedApi(token, '/action-items/')
+        if (itemsRes.ok) setAllActionItems(await itemsRes.json())
+      }
     }
   }), [token])
 
   useEffect(() => {
     if (!token) return
     authed.refreshEmails()
+    authed.refreshActionItems()
 
     const es = new EventSource(`/api/events/stream/?token=${encodeURIComponent(token)}`)
     es.addEventListener('connected', () => {
@@ -110,7 +131,7 @@ export default function App() {
     es.addEventListener('email.spam_classified', () => authed.refreshEmails())
     es.addEventListener('email.priority_assigned', () => authed.refreshEmails())
     es.addEventListener('email.summary', () => authed.refreshEmails())
-    es.addEventListener('email.action_items', () => authed.refreshEmails())
+    es.addEventListener('email.action_items', () => { authed.refreshEmails(); authed.refreshActionItems(); })
     es.addEventListener('email.tone_analyzed', () => authed.refreshEmails())
     es.addEventListener('email.url_scanned', () => authed.refreshEmails())
 
@@ -232,7 +253,8 @@ export default function App() {
         </div>
 
         <nav className="sidebar-nav">
-          <button className="nav-item active">📥 Inbox</button>
+          <button className={`nav-item ${activeView === 'inbox' ? 'active' : ''}`} onClick={() => setActiveView('inbox')}>📥 Inbox</button>
+          <button className={`nav-item ${activeView === 'actions' ? 'active' : ''}`} onClick={() => setActiveView('actions')}>✅ Actions</button>
           <button className="nav-item">⭐ Starred</button>
           <button className="nav-item">📤 Sent</button>
           <button className="nav-item">🚫 Spam</button>
@@ -256,21 +278,23 @@ export default function App() {
 
       {/* Main Content */}
       <main className="main-content">
-        <header className="inbox-header">
-          <div>
-            <h2 className="inbox-title">Inbox</h2>
-            <p className="inbox-subtitle">Realtime email stream with AI priority classification</p>
-          </div>
-          <button onClick={() => setIsComposeOpen(!isComposeOpen)}>
-            + New Message
-          </button>
-        </header>
+        {activeView === 'inbox' ? (
+          <>
+            <header className="inbox-header">
+              <div>
+                <h2 className="inbox-title">Inbox</h2>
+                <p className="inbox-subtitle">Realtime email stream with AI priority classification</p>
+              </div>
+              <button onClick={() => setIsComposeOpen(!isComposeOpen)}>
+                + New Message
+              </button>
+            </header>
 
-        <div className="inbox-container">
-          {/* Email List */}
-          <div className="email-list-pane">
-            {emails.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+            <div className="inbox-container">
+              {/* Email List */}
+              <div className="email-list-pane">
+                {emails.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
                 No emails found.
               </div>
             ) : (
@@ -332,16 +356,25 @@ export default function App() {
 
                     <div className="ai-card">
                       <span className="ai-label">Action Items</span>
-                      <ul style={{ paddingLeft: '1.2rem', margin: '0.5rem 0', fontSize: '0.9rem' }}>
-                        {selected.action_items && Array.isArray(selected.action_items)
+                      <div className="action-items-list">
+                        {selected.action_items && Array.isArray(selected.action_items) && selected.action_items.length > 0
                           ? selected.action_items.map((item, i) => (
-                            <li key={i}>
-                              {typeof item === 'object' ? JSON.stringify(item) : item}
-                            </li>
+                            <label key={i} className={`action-item-row ${item.done ? 'done' : ''}`}>
+                              <input
+                                type="checkbox"
+                                checked={item.done || false}
+                                onChange={() => authed.toggleActionItem(selected.id, i)}
+                              />
+                              <div className="action-item-content">
+                                <span className="action-item-text">{typeof item === 'object' ? item.text : item}</span>
+                                {item.due && <span className="action-item-due">📅 {item.due}</span>}
+                                {item.assignee && <span className="action-item-assignee">👤 {item.assignee}</span>}
+                              </div>
+                            </label>
                           ))
-                          : <li>{JSON.stringify(selected.action_items || 'None')}</li>
+                          : <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No action items</div>
                         }
-                      </ul>
+                      </div>
                     </div>
 
                     <div className="ai-card">
@@ -426,6 +459,56 @@ export default function App() {
             )}
           </div>
         </div>
+          </>
+        ) : activeView === 'actions' ? (
+          <>
+            <header className="inbox-header">
+              <div>
+                <h2 className="inbox-title">Action Items</h2>
+                <p className="inbox-subtitle">All your tasks from emails in one place</p>
+              </div>
+              <button onClick={() => authed.refreshActionItems()}>
+                ↻ Refresh
+              </button>
+            </header>
+
+            <div className="actions-container">
+              {allActionItems.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-secondary)' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✅</div>
+                  <div>No action items yet</div>
+                  <div style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>Action items from your emails will appear here</div>
+                </div>
+              ) : (
+                <div className="actions-list">
+                  {allActionItems.map((item, idx) => (
+                    <label
+                      key={`${item.email_id}-${item.index}`}
+                      className={`action-item-card ${item.done ? 'done' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.done || false}
+                        onChange={() => authed.toggleActionItem(item.email_id, item.index)}
+                      />
+                      <div className="action-item-card-content">
+                        <div className="action-item-text">{item.text}</div>
+                        <div className="action-item-meta">
+                          <span className="action-item-email" onClick={(e) => { e.preventDefault(); setSelectedId(item.email_id); setActiveView('inbox'); }}>
+                            📧 {item.email_subject}
+                          </span>
+                          {item.sender_username && <span>from {item.sender_username}</span>}
+                          {item.due && <span className="action-item-due">📅 {item.due}</span>}
+                          {item.assignee && <span className="action-item-assignee">👤 {item.assignee}</span>}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : null}
       </main>
 
       {/* Compose Modal */}
