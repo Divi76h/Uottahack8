@@ -251,28 +251,40 @@ export default function App() {
   }, [])
 
   useEffect(() => {
+    let rafId = null
+    const sidebarWidth = sidebarCollapsed ? 70 : 240
+    
     const handleMouseMove = (e) => {
       if (!isResizing) return
-      const newWidth = e.clientX - 240 // 240 is sidebar width
-      if (newWidth >= 250 && newWidth <= 800) {
-        setEmailPaneWidth(newWidth)
-      }
+      if (rafId) cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const newWidth = e.clientX - sidebarWidth
+        if (newWidth >= 250 && newWidth <= 800) {
+          setEmailPaneWidth(newWidth)
+        }
+      })
     }
     
     const handleMouseUp = () => {
       setIsResizing(false)
+      if (rafId) cancelAnimationFrame(rafId)
     }
     
     if (isResizing) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
     }
     
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      if (rafId) cancelAnimationFrame(rafId)
     }
-  }, [isResizing])
+  }, [isResizing, sidebarCollapsed])
 
   // Handle Enter key for AI search
   const handleSearchKeyDown = useCallback((e) => {
@@ -649,7 +661,7 @@ export default function App() {
               {/* Resizer */}
               {showEmailDetail && (
                 <div 
-                  className="pane-resizer"
+                  className={`pane-resizer ${isResizing ? 'resizing' : ''}`}
                   onMouseDown={handleMouseDown}
                 />
               )}
