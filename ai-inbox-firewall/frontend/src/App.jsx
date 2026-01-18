@@ -582,7 +582,7 @@ export default function App() {
                                 <span 
                                   key={e.id} 
                                   className="ai-chat-email-link"
-                                  onClick={() => setSelectedId(e.id)}
+                                  onClick={() => { setSelectedId(e.id); setShowEmailDetail(true); }}
                                 >
                                   {e.subject.substring(0, 40)}{e.subject.length > 40 ? '...' : ''}
                                 </span>
@@ -612,7 +612,7 @@ export default function App() {
                       <div 
                         key={email.id} 
                         className="search-result-item"
-                        onClick={() => { setSelectedId(email.id); }}
+                        onClick={() => { setSelectedId(email.id); setShowEmailDetail(true); }}
                       >
                         <div className="search-result-subject">{email.subject}</div>
                         <div className="search-result-meta">
@@ -635,7 +635,7 @@ export default function App() {
               emails.map((e) => (
                 <div
                   key={e.id}
-                  onClick={() => setSelectedId(e.id)}
+                  onClick={() => { setSelectedId(e.id); setShowEmailDetail(true); }}
                   className={`email-row ${selected?.id === e.id ? 'selected' : ''}`}
                 >
                   <div className={`email-dot priority-${(e.priority || 'Medium').toLowerCase()}`}></div>
@@ -836,17 +836,6 @@ export default function App() {
             )}
           </div>
           )}
-          
-          {/* Button to show email detail when hidden */}
-          {!showEmailDetail && (
-            <button 
-              className="show-detail-btn"
-              onClick={() => setShowEmailDetail(true)}
-              title="Show email detail"
-            >
-              ← Show Detail
-            </button>
-          )}
         </div>
           </>
         ) : activeView === 'actions' ? (
@@ -883,7 +872,7 @@ export default function App() {
                       <div className="action-item-card-content">
                         <div className="action-item-text">{item.text}</div>
                         <div className="action-item-meta">
-                          <span className="action-item-email" onClick={(e) => { e.preventDefault(); setSelectedId(item.email_id); setActiveView('inbox'); }}>
+                          <span className="action-item-email" onClick={(e) => { e.preventDefault(); setSelectedId(item.email_id); setShowEmailDetail(true); setActiveView('inbox'); }}>
                             📧 {item.email_subject}
                           </span>
                           {item.sender_username && <span>from {item.sender_username}</span>}
