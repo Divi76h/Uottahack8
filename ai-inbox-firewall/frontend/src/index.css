@@ -940,8 +940,7 @@ textarea:focus {
     top: 0;
     z-index: 10;
     background: var(--bg-primary);
-    padding: 0 0 0.75rem 0;
-    margin-bottom: 0.5rem;
+    padding: 0 0 0.5rem 0;
 }
 
 .ai-search-wrapper {

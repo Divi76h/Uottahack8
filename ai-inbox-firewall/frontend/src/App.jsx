@@ -49,8 +49,9 @@ function formatAiResponse(text, emails = []) {
     .replace(/>/g, '&gt;');
   
   // Convert email IDs to clickable links
-  // Matches patterns like "ID: 5", "id 5", "#5", "email 5", "Email ID: 5"
-  formatted = formatted.replace(/(?:email\s+)?(?:id)?[:\s]*#?(\d+)(?=\s|\.|,|$|<)/gi, (match, id) => {
+  // Only match explicit patterns like "Email ID: 5", "email #5", "ID 5", "id: 5"
+  // Don't match bare numbers that could be times, dates, etc.
+  formatted = formatted.replace(/\b(?:email\s+)?(?:id|ID)[:\s]+#?(\d+)\b/gi, (match, id) => {
     const emailId = parseInt(id);
     const email = emails.find(e => e.id === emailId);
     if (email) {
@@ -565,7 +566,10 @@ export default function App() {
                             // Handle clicks on email ID links
                             if (e.target.classList.contains('ai-email-id-link')) {
                               const emailId = parseInt(e.target.dataset.emailId);
-                              if (emailId) setSelectedId(emailId);
+                              if (emailId) {
+                                setSelectedId(emailId);
+                                setShowEmailDetail(true);
+                              }
                             }
                           }}
                         />
