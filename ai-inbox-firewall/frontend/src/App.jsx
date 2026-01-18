@@ -1,4 +1,30 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
+
+// Toast notification component
+function Toast({ toasts, removeToast }) {
+  return (
+    <div className="toast-container">
+      {toasts.map((toast) => (
+        <div
+          key={toast.id}
+          className={`toast toast-${toast.type}`}
+          onClick={() => removeToast(toast.id)}
+        >
+          <div className="toast-icon">
+            {toast.type === 'success' && '✓'}
+            {toast.type === 'error' && '✕'}
+            {toast.type === 'info' && 'ℹ'}
+            {toast.type === 'warning' && '⚠'}
+          </div>
+          <div className="toast-content">
+            <div className="toast-title">{toast.title}</div>
+            {toast.message && <div className="toast-message">{toast.message}</div>}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function api(path, opts = {}) {
   return fetch(`/api${path}`, {
@@ -33,6 +59,21 @@ export default function App() {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
 
+  // Toast notifications
+  const [toasts, setToasts] = useState([])
+  
+  const showToast = useCallback((type, title, message = '') => {
+    const id = Date.now()
+    setToasts(prev => [...prev, { id, type, title, message }])
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id))
+    }, 4000)
+  }, [])
+
+  const removeToast = useCallback((id) => {
+    setToasts(prev => prev.filter(t => t.id !== id))
+  }, [])
+
   // Derive selected email from ID
   const selected = useMemo(() =>
     selectedId ? emails.find(e => e.id === selectedId) : null,
@@ -57,7 +98,13 @@ export default function App() {
     es.addEventListener('connected', () => {
       // no-op
     })
-    es.onmessage = () => {
+    es.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data)
+        if (data.event_type === 'email.new') {
+          showToast('info', 'New Email', `From: ${data.sender_username || 'unknown'} — ${data.subject || 'No subject'}`)
+        }
+      } catch (e) {}
       authed.refreshEmails()
     }
     es.addEventListener('email.spam_classified', () => authed.refreshEmails())
@@ -68,7 +115,7 @@ export default function App() {
     es.addEventListener('email.url_scanned', () => authed.refreshEmails())
 
     return () => es.close()
-  }, [token])
+  }, [token, showToast])
 
   async function doAuth() {
     if (mode === 'register') {
@@ -77,9 +124,11 @@ export default function App() {
         body: JSON.stringify({ username, password })
       })
       if (!r.ok) {
-        alert('Register failed')
+        const err = await r.json().catch(() => ({}))
+        showToast('error', 'Registration Failed', err.detail || err.username?.[0] || 'Could not create account. Username may already exist.')
         return
       }
+      showToast('success', 'Account Created', 'Welcome! Logging you in...')
     }
 
     const res = await api('/auth/token/', {
@@ -87,27 +136,39 @@ export default function App() {
       body: JSON.stringify({ username, password })
     })
     if (!res.ok) {
-      alert('Login failed')
+      const err = await res.json().catch(() => ({}))
+      showToast('error', 'Login Failed', err.detail || 'Invalid username or password.')
       return
     }
     const data = await res.json()
     localStorage.setItem('jwt', data.access)
     setToken(data.access)
+    showToast('success', 'Welcome Back', `Logged in as ${username}`)
   }
 
   async function sendEmail() {
+    if (!toUser.trim()) {
+      showToast('warning', 'Missing Recipient', 'Please enter a username to send to.')
+      return
+    }
+    if (!subject.trim()) {
+      showToast('warning', 'Missing Subject', 'Please enter a subject for your email.')
+      return
+    }
     const res = await authedApi(token, '/emails/', {
       method: 'POST',
       body: JSON.stringify({ recipient_username: toUser, subject, body })
     })
     if (!res.ok) {
-      alert('Send failed')
+      const err = await res.json().catch(() => ({}))
+      showToast('error', 'Send Failed', err.detail || `Could not send email to "${toUser}". User may not exist.`)
       return
     }
+    const recipient = toUser
     setToUser('')
     setSubject('')
     setBody('')
-    alert('Sent')
+    showToast('success', 'Email Sent', `Your message was delivered to ${recipient}`)
   }
 
   const [isComposeOpen, setIsComposeOpen] = useState(false)
@@ -117,8 +178,8 @@ export default function App() {
       <div className="auth-container">
         <div className="auth-card">
           <div className="sidebar-logo" style={{ margin: '0 auto 1.5rem auto' }}>✉</div>
-          <h1 className="auth-title">AI Inbox</h1>
-          <p className="auth-subtitle">Next-gen firewall powered by Solace Agent Mesh</p>
+          <h1 className="auth-title">uOttaMail</h1>
+          <p className="auth-subtitle">AI-powered inbox firewall by Solace Agent Mesh</p>
 
           <div className="auth-tabs">
             <button
@@ -152,6 +213,8 @@ export default function App() {
             </button>
           </div>
         </div>
+        {/* Toast Notifications */}
+        <Toast toasts={toasts} removeToast={removeToast} />
       </div>
     )
   }
@@ -163,8 +226,8 @@ export default function App() {
         <div className="sidebar-header">
           <div className="sidebar-logo">✉</div>
           <div>
-            <div className="sidebar-title">Inbox</div>
-            <div className="sidebar-subtitle">Firewall MVP</div>
+            <div className="sidebar-title">uOttaMail</div>
+            <div className="sidebar-subtitle">AI Inbox Firewall</div>
           </div>
         </div>
 
@@ -402,6 +465,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Toast Notifications */}
+      <Toast toasts={toasts} removeToast={removeToast} />
     </div>
   )
 }
