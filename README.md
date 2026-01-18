@@ -49,7 +49,7 @@ An intelligent email security system that uses **multiple AI agents** to analyze
                                               └─────────────────────────────────┘
                                                               │
                                               ┌───────────────┴───────────────┐
-                                              │        External Services       │
+                                              │        External Services      │
                                               │  • AWS Bedrock (Claude 3.5)   │
                                               │  • VirusTotal API (MCP)       │
                                               └───────────────────────────────┘
