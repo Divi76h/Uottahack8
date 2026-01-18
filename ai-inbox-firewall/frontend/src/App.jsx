@@ -56,6 +56,7 @@ export default function App() {
     es.addEventListener('email.priority_assigned', () => authed.refreshEmails())
     es.addEventListener('email.summary', () => authed.refreshEmails())
     es.addEventListener('email.action_items', () => authed.refreshEmails())
+    es.addEventListener('email.tone_analyzed', () => authed.refreshEmails())
 
     return () => es.close()
   }, [token])
@@ -193,6 +194,8 @@ export default function App() {
             <pre style={{ whiteSpace: 'pre-wrap' }}>{selected.summary || '...'}</pre>
             <p><b>Action items</b>:</p>
             <pre style={{ whiteSpace: 'pre-wrap' }}>{selected.action_items ? JSON.stringify(selected.action_items, null, 2) : '...'}</pre>
+            <p><b>Tone</b>: {selected.tone_emotion || '...'} {selected.tone_confidence ? `(${selected.tone_confidence})` : ''}</p>
+            {selected.tone_explanation && <p style={{ fontStyle: 'italic', opacity: 0.8 }}>{selected.tone_explanation}</p>}
 
             <button onClick={authed.refreshEmails}>Refresh</button>
           </div>

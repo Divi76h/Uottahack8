@@ -38,6 +38,9 @@ class EmailSerializer(serializers.ModelSerializer):
             'priority_reason',
             'summary',
             'action_items',
+            'tone_emotion',
+            'tone_confidence',
+            'tone_explanation',
         ]
 
     def get_sender_username(self, obj: Email):

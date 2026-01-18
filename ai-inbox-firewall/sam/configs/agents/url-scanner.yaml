@@ -1,0 +1,126 @@
+log:
+  stdout_log_level: INFO
+
+!include ../shared_config.yaml
+
+# =============================================================================
+# URL SECURITY SCANNER AGENT
+# =============================================================================
+# This agent scans URLs for malware, phishing, and security threats using
+# VirusTotal's database of 70+ antivirus engines.
+#
+# SETUP:
+#   1. Get a free VirusTotal API key: https://www.virustotal.com/gui/join-us
+#   2. Add to your .env file: VIRUSTOTAL_API_KEY=your_key_here
+#
+# Example usage:
+#   "Is this URL safe? https://example.com/download"
+#   "Check if this link has viruses: https://suspicious-site.xyz"
+#   "Scan this URL for malware: https://some-website.com"
+# =============================================================================
+
+apps:
+  - name: url-scanner_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE, sam/}
+      supports_streaming: true
+      agent_name: "URLScanner"
+      display_name: "URL Security Scanner"
+      model: *general_model
+
+      instruction: |
+        You are a cybersecurity expert that scans URLs for malware, phishing, and security threats.
+
+        CAPABILITIES:
+        - Scan URLs using VirusTotal (70+ antivirus engines) - scan_url_virustotal
+        - Quick structural analysis for phishing patterns - analyze_url_structure
+
+        IMPORTANT - Tool Output Rules:
+        - WAIT for the tool to return results before responding
+        - Use the EXACT values returned by the tools
+        - NEVER guess or make up security verdicts
+        - If a tool fails, tell the user - don't fabricate results
+
+        WORKFLOW:
+        1. When given a URL, FIRST run analyze_url_structure for quick local checks
+        2. THEN run scan_url_virustotal for comprehensive threat detection
+        3. Present BOTH results to give a complete security picture
+
+        RESPONSE FORMAT:
+        Always include:
+        - Clear verdict: SAFE ✅, SUSPICIOUS ⚠️, or DANGEROUS 🚨
+        - Number of engines that flagged the URL
+        - Specific warnings or threats detected
+        - The VirusTotal link so users can see full details
+        - Your security recommendation
+
+        EXAMPLE RESPONSE:
+        "## URL Security Report
+
+        **URL:** https://example.com
+        **Verdict:** ✅ SAFE
+
+        ### VirusTotal Results
+        - 0 of 70 engines detected threats
+        - No malware, phishing, or suspicious content found
+
+        ### Structure Analysis  
+        - Uses HTTPS ✅
+        - No suspicious patterns detected
+
+        **Recommendation:** This URL appears safe to visit.
+
+        [View full report on VirusTotal](link)"
+
+        If VIRUSTOTAL_API_KEY is not configured, tell the user how to get a free key.
+
+      session_service:
+        type: ${PERSISTENCE_TYPE, memory}
+        database_url: ${CUSTOM_AGENT_DATABASE_URL,}
+
+      artifact_service: *default_artifact_service
+
+      agent_card:
+        description: >
+          URL Security Scanner Agent - Checks URLs for malware, phishing, viruses, 
+          and security threats using VirusTotal's database of 70+ antivirus engines.
+          Use this agent when the user asks "Is this URL safe?", "Check this link 
+          for viruses", "Scan this URL for malware", "Is this website legitimate?",
+          or needs to verify if a link is dangerous before clicking.
+        defaultInputModes: ["text"]
+        defaultOutputModes: ["text"]
+        skills:
+          - id: "url_scan"
+            name: "URL Security Scan"
+            description: "Scan URLs for malware and phishing threats"
+
+      agent_card_publishing:
+        interval_seconds: 10
+
+      agent_discovery:
+        enabled: true
+
+      inter_agent_communication:
+        allow_list: ["OrchestratorAgent"]
+        request_timeout_seconds: 60
+
+      tools:
+        # VirusTotal URL Scanner (requires API key)
+        - tool_type: python
+          component_module: "src.url_scanner_tools"
+          component_base_path: .
+          function_name: "scan_url_virustotal"
+          tool_config:
+            virustotal_api_key: ${VIRUSTOTAL_API_KEY,}
+
+        # Quick structural analysis (no API key needed)
+        - tool_type: python
+          component_module: "src.url_scanner_tools"
+          component_base_path: .
+          function_name: "analyze_url_structure"

@@ -34,6 +34,11 @@ class Email(models.Model):
     summary = models.TextField(null=True, blank=True)
     action_items = models.JSONField(null=True, blank=True)
 
+    # Tone analysis
+    tone_emotion = models.CharField(max_length=32, null=True, blank=True)
+    tone_confidence = models.CharField(max_length=16, null=True, blank=True)
+    tone_explanation = models.TextField(null=True, blank=True)
+
     def __str__(self) -> str:
         return f"{self.id} | {self.subject}"
 
@@ -45,6 +50,7 @@ class EmailEvent(models.Model):
         ('email.priority_assigned', 'Priority Assigned'),
         ('email.summary', 'Summary'),
         ('email.action_items', 'Action Items'),
+        ('email.tone_analyzed', 'Tone Analyzed'),
     ]
 
     email = models.ForeignKey(Email, on_delete=models.CASCADE, related_name='events')

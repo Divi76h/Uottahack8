@@ -16,6 +16,7 @@ EVENT_TYPE_MAP = {
     "priority_assigned": "email.priority_assigned",
     "summary": "email.summary",
     "action_items": "email.action_items",
+    "tone_analyzed": "email.tone_analyzed",
 }
 
 
@@ -143,14 +144,16 @@ class Command(BaseCommand):
         def on_connect(c, userdata, flags, rc, properties=None):
             self.stdout.write(self.style.SUCCESS(f"Connected to MQTT broker rc={rc}"))
             # Subscribe to all processed events
-            for ev in ["spam_classified", "priority_assigned", "summary", "action_items"]:
-                c.subscribe(f"{prefix}/{ev}/#", qos=0)
+            for ev in ["spam_classified", "priority_assigned", "summary", "action_items", "tone_analyzed"]:
+                topic = f"{prefix}/{ev}/#"
+                c.subscribe(topic, qos=0)
+                print(f"[SUBSCRIBE] Subscribed to: {topic}")
 
         def on_disconnect(c, userdata, rc, properties=None):
             self.stdout.write(self.style.WARNING(f"Disconnected rc={rc} (will auto-reconnect)"))
 
         def on_message(c, userdata, msg):
-            print("Received message:", msg)
+            print(f"Received message on topic: {msg.topic}")
             meta = _parse_topic(msg.topic)
             if not meta:
                 return
@@ -188,6 +191,35 @@ class Command(BaseCommand):
                     except Exception:
                         pass
                 email.action_items = items
+            elif ev == "tone_analyzed":
+                print(f"[TONE DEBUG] Raw payload: {payload}")
+                print(f"[TONE DEBUG] Payload type: {type(payload)}")
+                # Handle case where payload is {'raw': '```json...```'}
+                if isinstance(payload, dict) and "raw" in payload:
+                    raw_text = payload["raw"]
+                    payload = _try_parse_json_from_text(raw_text)
+                    print(f"[TONE DEBUG] Parsed from raw: {payload}")
+                    # If still got raw back, try regex extraction for truncated JSON
+                    if isinstance(payload, dict) and "raw" in payload:
+                        import re
+                        text = payload["raw"]
+                        # Extract primary_emotion
+                        match = re.search(r'"primary_emotion"\s*:\s*"([^"]+)"', text)
+                        if match:
+                            payload["primary_emotion"] = match.group(1)
+                        # Extract confidence
+                        match = re.search(r'"confidence"\s*:\s*"([^"]+)"', text)
+                        if match:
+                            payload["confidence"] = match.group(1)
+                        # Extract explanation (may be truncated)
+                        match = re.search(r'"explanation"\s*:\s*"([^"]*)', text)
+                        if match:
+                            payload["explanation"] = match.group(1).rstrip('\\')
+                        print(f"[TONE DEBUG] Regex extracted: {payload}")
+                email.tone_emotion = payload.get("primary_emotion") or payload.get("emotion")
+                email.tone_confidence = payload.get("confidence")
+                email.tone_explanation = payload.get("explanation") or payload.get("brief_explanation")
+                print(f"[TONE DEBUG] Extracted: emotion={email.tone_emotion}, confidence={email.tone_confidence}")
 
             email.save()
 
