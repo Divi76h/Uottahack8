@@ -214,7 +214,7 @@ export default function App() {
               emails.map((e) => (
                 <div
                   key={e.id}
-                  onClick={() => setSelected(e)}
+                  onClick={() => setSelectedId(e.id)}
                   className={`email-row ${selected?.id === e.id ? 'selected' : ''}`}
                 >
                   <div className={`email-dot priority-${(e.priority || 'Medium').toLowerCase()}`}></div>
@@ -284,16 +284,72 @@ export default function App() {
                     <div className="ai-card">
                       <span className="ai-label">Classification</span>
                       <div>
-                        Spam: <b style={{ color: selected.spam_label === 'SPAM' ? '#fca5a5' : '#86efac' }}>{selected.spam_label}</b>
+                        Spam: <b style={{ color: selected.spam_label === 'spam' ? '#fca5a5' : '#86efac' }}>{selected.spam_label || 'Processing...'}</b>
                       </div>
                       <div style={{ marginTop: 8 }}>
-                        <b>Priority: {selected.priority || 'Normal'}</b>
+                        <b>Priority: {selected.priority || 'Processing...'}</b>
                         {selected.priority_reason && (
                           <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 2 }}>
                             {selected.priority_reason}
                           </div>
                         )}
                       </div>
+                    </div>
+
+                    <div className="ai-card">
+                      <span className="ai-label">Tone Analysis</span>
+                      {selected.tone_emotion ? (
+                        <>
+                          <div style={{ marginTop: 4 }}>
+                            Emotion: <b style={{ color: '#a5b4fc' }}>{selected.tone_emotion}</b>
+                            {selected.tone_confidence && (
+                              <span style={{ marginLeft: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                ({selected.tone_confidence} confidence)
+                              </span>
+                            )}
+                          </div>
+                          {selected.tone_explanation && (
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 6 }}>
+                              {selected.tone_explanation}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ color: 'var(--text-secondary)' }}>Processing...</div>
+                      )}
+                    </div>
+
+                    <div className="ai-card">
+                      <span className="ai-label">URL Security Scan</span>
+                      {selected.url_scan_verdict ? (
+                        <>
+                          <div style={{ marginTop: 4 }}>
+                            Verdict: <b style={{
+                              color: selected.url_scan_verdict === 'SAFE' ? '#86efac' :
+                                     selected.url_scan_verdict === 'SUSPICIOUS' ? '#fcd34d' : '#fca5a5'
+                            }}>{selected.url_scan_verdict}</b>
+                            {selected.url_scan_threat_level && (
+                              <span style={{ marginLeft: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                (Threat: {selected.url_scan_threat_level})
+                              </span>
+                            )}
+                          </div>
+                          {(selected.url_scan_malicious_count > 0 || selected.url_scan_suspicious_count > 0) && (
+                            <div style={{ fontSize: '0.85rem', marginTop: 4 }}>
+                              <span style={{ color: '#fca5a5' }}>{selected.url_scan_malicious_count || 0} malicious</span>
+                              {' | '}
+                              <span style={{ color: '#fcd34d' }}>{selected.url_scan_suspicious_count || 0} suspicious</span>
+                            </div>
+                          )}
+                          {selected.url_scan_summary && (
+                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 6 }}>
+                              {selected.url_scan_summary}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div style={{ color: 'var(--text-secondary)' }}>No URLs detected or processing...</div>
+                      )}
                     </div>
                   </div>
 
