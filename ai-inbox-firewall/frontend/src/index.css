@@ -382,6 +382,7 @@ textarea:focus {
     padding: 1rem;
     border-radius: 8px;
     border: 1px solid var(--border-color);
+    overflow: hidden;
 }
 
 .ai-label {
@@ -390,13 +391,75 @@ textarea:focus {
     text-transform: uppercase;
     letter-spacing: 0.05em;
     color: var(--text-secondary);
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.75rem;
 }
 
 .ai-value {
     font-size: 0.95rem;
+    line-height: 1.5;
     color: var(--text-primary);
-    font-weight: 500;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.ai-value-muted {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+}
+
+.ai-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem;
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+}
+
+.ai-row:last-child {
+    margin-bottom: 0;
+}
+
+.ai-row-label {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.ai-row-value {
+    color: var(--text-primary);
+}
+
+.ai-confidence {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.ai-separator {
+    color: var(--border-color);
+    margin: 0 0.25rem;
+}
+
+.ai-explanation {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-top: 0.5rem;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.ai-link {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--accent-light);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+
+.ai-link:hover {
+    color: var(--accent);
+    text-decoration: underline;
 }
 
 /* Auth Pages */

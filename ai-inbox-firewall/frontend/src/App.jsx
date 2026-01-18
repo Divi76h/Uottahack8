@@ -349,7 +349,7 @@ export default function App() {
                   <div className="ai-cards-grid">
                     <div className="ai-card">
                       <span className="ai-label">Summary</span>
-                      <div className="ai-value" style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
+                      <div className="ai-value">
                         {selected.summary || 'Processing...'}
                       </div>
                     </div>
@@ -379,72 +379,99 @@ export default function App() {
 
                     <div className="ai-card">
                       <span className="ai-label">Classification</span>
-                      <div>
-                        Spam: <b style={{ color: selected.spam_label === 'spam' ? '#fca5a5' : '#86efac' }}>{selected.spam_label || 'Processing...'}</b>
+                      <div className="ai-row">
+                        <span className="ai-row-label">Spam:</span>
+                        <span style={{ color: selected.spam_label === 'spam' ? '#fca5a5' : '#86efac' }}>
+                          {selected.spam_label || 'Processing...'}
+                        </span>
                       </div>
-                      <div style={{ marginTop: 8 }}>
-                        <b>Priority: {selected.priority || 'Processing...'}</b>
-                        {selected.priority_reason && (
-                          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-                            {selected.priority_reason}
-                          </div>
-                        )}
+                      <div className="ai-row">
+                        <span className="ai-row-label">Priority:</span>
+                        <span style={{ color: selected.priority === 'urgent' ? '#fca5a5' : selected.priority === 'high' ? '#fcd34d' : '#86efac' }}>
+                          {selected.priority || 'Processing...'}
+                        </span>
                       </div>
+                      {selected.priority_reason && (
+                        <div className="ai-explanation">
+                          {selected.priority_reason}
+                        </div>
+                      )}
                     </div>
 
                     <div className="ai-card">
                       <span className="ai-label">Tone Analysis</span>
                       {selected.tone_emotion ? (
                         <>
-                          <div style={{ marginTop: 4 }}>
-                            Emotion: <b style={{ color: '#a5b4fc' }}>{selected.tone_emotion}</b>
+                          <div className="ai-row">
+                            <span className="ai-row-label">Emotion:</span>
+                            <span style={{ color: 
+                              ['angry', 'frustrated', 'annoyed', 'hostile'].includes(selected.tone_emotion?.toLowerCase()) ? '#fca5a5' :
+                              ['anxious', 'worried', 'uncomfortable', 'nervous'].includes(selected.tone_emotion?.toLowerCase()) ? '#fcd34d' :
+                              ['happy', 'excited', 'grateful', 'positive'].includes(selected.tone_emotion?.toLowerCase()) ? '#86efac' :
+                              '#a5b4fc'
+                            }}>{selected.tone_emotion}</span>
                             {selected.tone_confidence && (
-                              <span style={{ marginLeft: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                ({selected.tone_confidence} confidence)
-                              </span>
+                              <span className="ai-confidence">({selected.tone_confidence})</span>
                             )}
                           </div>
                           {selected.tone_explanation && (
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 6 }}>
+                            <div className="ai-explanation">
                               {selected.tone_explanation}
                             </div>
                           )}
                         </>
                       ) : (
-                        <div style={{ color: 'var(--text-secondary)' }}>Processing...</div>
+                        <div className="ai-value-muted">Processing...</div>
                       )}
                     </div>
 
                     <div className="ai-card">
                       <span className="ai-label">URL Security Scan</span>
                       {selected.url_scan_verdict ? (
-                        <>
-                          <div style={{ marginTop: 4 }}>
-                            Verdict: <b style={{
-                              color: selected.url_scan_verdict === 'SAFE' ? '#86efac' :
-                                     selected.url_scan_verdict === 'SUSPICIOUS' ? '#fcd34d' : '#fca5a5'
-                            }}>{selected.url_scan_verdict}</b>
-                            {selected.url_scan_threat_level && (
-                              <span style={{ marginLeft: 8, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                (Threat: {selected.url_scan_threat_level})
-                              </span>
-                            )}
-                          </div>
-                          {(selected.url_scan_malicious_count > 0 || selected.url_scan_suspicious_count > 0) && (
-                            <div style={{ fontSize: '0.85rem', marginTop: 4 }}>
-                              <span style={{ color: '#fca5a5' }}>{selected.url_scan_malicious_count || 0} malicious</span>
-                              {' | '}
-                              <span style={{ color: '#fcd34d' }}>{selected.url_scan_suspicious_count || 0} suspicious</span>
-                            </div>
-                          )}
-                          {selected.url_scan_summary && (
-                            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 6 }}>
-                              {selected.url_scan_summary}
-                            </div>
-                          )}
-                        </>
+                        (() => {
+                          // Extract URL/domain from details if present (format: "URL domain.com ...")
+                          const extractedUrl = selected.url_scan_details?.match(/^URL\s+(\S+)/i)?.[1] || null;
+                          const hasThreats = (selected.url_scan_malicious_count > 0 || selected.url_scan_suspicious_count > 0);
+                          
+                          return (
+                            <>
+                              <div className="ai-row">
+                                <span className="ai-row-label">Verdict:</span>
+                                <span style={{
+                                  color: selected.url_scan_verdict === 'SAFE' ? '#86efac' :
+                                         selected.url_scan_verdict === 'SUSPICIOUS' ? '#fcd34d' : '#fca5a5'
+                                }}>{selected.url_scan_verdict}</span>
+                                {selected.url_scan_threat_level && selected.url_scan_verdict !== 'SAFE' && (
+                                  <span className="ai-confidence">(Threat: {selected.url_scan_threat_level})</span>
+                                )}
+                              </div>
+                              {hasThreats && (
+                                <div className="ai-row" style={{ whiteSpace: 'nowrap' }}>
+                                  <span style={{ color: '#fca5a5' }}>{selected.url_scan_malicious_count || 0} malicious</span>
+                                  <span className="ai-separator">|</span>
+                                  <span style={{ color: '#fcd34d' }}>{selected.url_scan_suspicious_count || 0} suspicious</span>
+                                </div>
+                              )}
+                              {selected.url_scan_summary && (
+                                <div className="ai-explanation">
+                                  {selected.url_scan_summary}
+                                </div>
+                              )}
+                              {extractedUrl && hasThreats && (
+                                <a 
+                                  href={`https://www.virustotal.com/gui/domain/${encodeURIComponent(extractedUrl)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="ai-link"
+                                >
+                                  🔗 View {extractedUrl} on VirusTotal
+                                </a>
+                              )}
+                            </>
+                          );
+                        })()
                       ) : (
-                        <div style={{ color: 'var(--text-secondary)' }}>No URLs detected or processing...</div>
+                        <div className="ai-value-muted">No URLs detected or processing...</div>
                       )}
                     </div>
                   </div>
