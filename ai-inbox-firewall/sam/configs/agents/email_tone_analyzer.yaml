@@ -1,0 +1,71 @@
+# Email Tone Analyzer Agent Configuration
+
+log:
+  stdout_log_level: INFO
+  log_file_level: INFO
+  log_file: email-tone-analyzer.log
+
+# Shared SAM config
+!include ../shared_config.yaml
+
+apps:
+  - name: email-tone-analyzer_app
+    app_base_path: .
+    app_module: solace_agent_mesh.agent.sac.app
+    broker:
+      <<: *broker_connection
+
+    app_config:
+      namespace: ${NAMESPACE}
+      supports_streaming: true
+      agent_name: "EmailToneAnalyzer"
+      display_name: "Email Tone Analyzer"
+      model: *general_model
+
+      instruction: |
+        You are the Email Tone Analyzer Agent. Your task is to analyze the tone of an email or passage of text and determine the primary emotion it conveys.
+
+        Analyze the provided text for emotional tone. Consider factors such as:
+        - Word choice and sentiment
+        - Punctuation and capitalization
+        - Overall sentiment (positive, negative, neutral)
+        - Specific emotions like happiness, anger, sadness, excitement, frustration, etc.
+
+        Return your analysis in the following format:
+        - Primary Emotion: [emotion name]
+        - Confidence: [high/medium/low]
+        - Brief Explanation: [short reason]
+
+        Emotions to choose from: happy, sad, angry, excited, frustrated, neutral, anxious, grateful, disappointed, enthusiastic, sarcastic, professional, urgent, apologetic, congratulatory.
+
+        If the text is neutral or lacks clear emotion, classify as "neutral".
+
+      inject_system_purpose: true
+      inject_response_format: true
+      inject_user_profile: true
+      session_service:
+        type: "memory"
+        default_behavior: "RUN_BASED"
+      artifact_service: *default_artifact_service
+      artifact_handling_mode: "reference"
+      enable_embed_resolution: true
+      enable_artifact_content_instruction: true
+      data_tools_config: *default_data_tools_config
+      tools: []
+
+      agent_card:
+        description: "Analyzes the emotional tone of emails and text passages, identifying the primary emotion conveyed."
+        defaultInputModes: [text]
+        defaultOutputModes: [text]
+        skills:
+        - id: tone_analysis
+          name: Tone Analysis
+          description: Examines text to determine emotional tone and primary sentiment, classifying into specific emotion categories.
+
+      agent_card_publishing:
+        interval_seconds: 10
+      agent_discovery:
+        enabled: true
+      inter_agent_communication:
+        allow_list: ["*"]
+        request_timeout_seconds: 300
