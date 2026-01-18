@@ -101,11 +101,44 @@ textarea:focus {
 
 /* Sidebar */
 .sidebar {
-    width: 280px;
+    width: 240px;
     background: linear-gradient(180deg, var(--bg-secondary) 0%, var(--bg-primary) 100%);
     display: flex;
     flex-direction: column;
     padding: 1.5rem;
+    position: relative;
+    transition: width 0.3s ease, padding 0.3s ease;
+}
+
+.sidebar.collapsed {
+    width: 70px;
+    padding: 1rem 0.75rem;
+}
+
+.sidebar-collapse-btn {
+    position: absolute;
+    top: 50%;
+    right: -12px;
+    transform: translateY(-50%);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    transition: all 0.2s;
+}
+
+.sidebar-collapse-btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
 }
 
 .sidebar-header {
@@ -153,6 +186,15 @@ textarea:focus {
     color: var(--text-secondary);
     text-align: left;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    transition: all 0.2s;
+}
+
+.sidebar.collapsed .nav-item {
+    padding: 12px;
+    text-align: center;
+    font-size: 1.2rem;
 }
 
 .nav-item:hover {
@@ -211,15 +253,26 @@ textarea:focus {
 
 /* Email List Pane */
 .email-list-pane {
-    flex: 1;
+    flex-shrink: 0;
     overflow-y: auto;
-    padding: 1.5rem;
+    padding: 1rem;
     display: flex;
     flex-direction: column;
     gap: 12px;
-    border-right: 1px solid var(--border-color);
-    max-width: 500px;
-    /* Split view */
+    transition: width 0.1s ease;
+}
+
+/* Resizer between email list and detail */
+.pane-resizer {
+    width: 4px;
+    background: var(--border-color);
+    cursor: col-resize;
+    transition: background 0.2s;
+    flex-shrink: 0;
+}
+
+.pane-resizer:hover {
+    background: var(--accent);
 }
 
 .email-row {
@@ -338,10 +391,81 @@ textarea:focus {
 
 /* Email Detail View */
 .email-detail-pane {
-    flex: 1.5;
+    flex: 1;
     padding: 2rem;
     overflow-y: auto;
     background: var(--bg-primary);
+    position: relative;
+}
+
+/* Close button for detail pane */
+.close-detail-btn {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    z-index: 10;
+}
+
+.close-detail-btn:hover {
+    background: #ef4444;
+    color: white;
+    border-color: #ef4444;
+}
+
+/* Show detail button when hidden */
+.show-detail-btn {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 0.75rem 1rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.show-detail-btn:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+/* Generic close button */
+.close-btn {
+    margin-left: auto;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.close-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
 }
 
 .detail-header {
@@ -800,9 +924,12 @@ textarea:focus {
 
 /* AI Search Bar */
 .ai-search-container {
-    position: relative;
-    margin-bottom: 1rem;
-    padding: 0 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--bg-primary);
+    padding: 0 0 0.75rem 0;
+    margin-bottom: 0.5rem;
 }
 
 .ai-search-wrapper {
@@ -810,6 +937,7 @@ textarea:focus {
     display: flex;
     align-items: center;
     width: 100%;
+    background: var(--bg-primary);
 }
 
 .ai-search-input {
@@ -887,11 +1015,13 @@ textarea:focus {
 /* Search Results */
 .search-results {
     margin-top: 1rem;
+    margin-bottom: 1rem;
     border: 1px solid var(--border-color);
     border-radius: 0.75rem;
     background: var(--bg-secondary);
     max-height: 400px;
     overflow-y: auto;
+    min-height: fit-content;
 }
 
 .search-results-header {
@@ -904,6 +1034,8 @@ textarea:focus {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    position: sticky;
+    top: 0;
 }
 
 .search-result-item {
@@ -911,6 +1043,7 @@ textarea:focus {
     border-bottom: 1px solid var(--border-color);
     cursor: pointer;
     transition: background 0.15s;
+    display: block;
 }
 
 .search-result-item:last-child {
@@ -925,11 +1058,13 @@ textarea:focus {
     font-weight: 500;
     color: var(--text-primary);
     margin-bottom: 0.25rem;
+    display: block;
 }
 
 .search-result-meta {
     font-size: 0.8rem;
     color: var(--text-secondary);
+    display: block;
 }
 
 .search-result-snippet {
@@ -939,6 +1074,7 @@ textarea:focus {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    display: block;
 }
 
 .search-result-highlight {
@@ -950,30 +1086,11 @@ textarea:focus {
 
 /* AI Chat Response */
 .ai-chat-response {
-    margin-top: 1rem;
-    padding: 1.25rem;
+    margin-top: 0.75rem;
+    padding: 1rem;
     background: linear-gradient(135deg, rgba(147, 51, 234, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
     border: 1px solid rgba(147, 51, 234, 0.3);
-    border-radius: 1rem;
-    max-height: 250px;
-    overflow-y: auto;
-}
-
-.ai-chat-response::-webkit-scrollbar {
-    width: 6px;
-}
-
-.ai-chat-response::-webkit-scrollbar-track {
-    background: transparent;
-}
-
-.ai-chat-response::-webkit-scrollbar-thumb {
-    background: rgba(147, 51, 234, 0.3);
-    border-radius: 3px;
-}
-
-.ai-chat-response::-webkit-scrollbar-thumb:hover {
-    background: rgba(147, 51, 234, 0.5);
+    border-radius: 0.75rem;
 }
 
 .ai-chat-header {

@@ -48,13 +48,13 @@ function formatAiResponse(text, emails = []) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
   
-  // Convert email IDs to clickable links (matches patterns like "ID: 5" or "id 5" or "#5" or just standalone numbers that look like IDs)
-  // First, find email IDs mentioned like "ID: 5", "id: 5", "Email ID: 5", "email #5"
-  formatted = formatted.replace(/(?:email\s*)?(?:id)?[:\s#]*(\d+)/gi, (match, id) => {
+  // Convert email IDs to clickable links
+  // Matches patterns like "ID: 5", "id 5", "#5", "email 5", "Email ID: 5"
+  formatted = formatted.replace(/(?:email\s+)?(?:id)?[:\s]*#?(\d+)(?=\s|\.|,|$|<)/gi, (match, id) => {
     const emailId = parseInt(id);
     const email = emails.find(e => e.id === emailId);
     if (email) {
-      return `<span class="ai-email-id-link" data-email-id="${emailId}" title="${email.subject}">📧 ${email.subject.substring(0, 30)}${email.subject.length > 30 ? '...' : ''}</span>`;
+      return `<span class="ai-email-id-link" data-email-id="${emailId}" title="Click to view: ${email.subject.replace(/"/g, '&quot;')}">\ud83d\udce7 ${email.subject.substring(0, 30)}${email.subject.length > 30 ? '...' : ''}</span>`;
     }
     return match;
   });
@@ -133,6 +133,12 @@ export default function App() {
   const [aiEnabled, setAiEnabled] = useState(true)
   const [aiResponse, setAiResponse] = useState(null)
   const [isAiLoading, setIsAiLoading] = useState(false)
+  
+  // UI state for panels
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [emailPaneWidth, setEmailPaneWidth] = useState(500)
+  const [isResizing, setIsResizing] = useState(false)
+  const [showEmailDetail, setShowEmailDetail] = useState(true)
   
   const debouncedSearch = useDebounce(searchQuery, 300)
 
@@ -238,10 +244,42 @@ export default function App() {
     authed.searchEmails(debouncedSearch)
   }, [debouncedSearch, token])
 
+  // Resizable pane handlers
+  const handleMouseDown = useCallback((e) => {
+    e.preventDefault()
+    setIsResizing(true)
+  }, [])
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return
+      const newWidth = e.clientX - 240 // 240 is sidebar width
+      if (newWidth >= 250 && newWidth <= 800) {
+        setEmailPaneWidth(newWidth)
+      }
+    }
+    
+    const handleMouseUp = () => {
+      setIsResizing(false)
+    }
+    
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    }
+    
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [isResizing])
+
   // Handle Enter key for AI search
   const handleSearchKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && searchQuery.trim() && aiEnabled) {
       e.preventDefault()
+      // Clear text search results when using AI
+      setSearchResults([])
       authed.sendChatQuery(searchQuery.trim())
     }
   }, [searchQuery, aiEnabled, authed])
@@ -392,21 +430,35 @@ export default function App() {
   return (
     <div className="app-container">
       {/* Sidebar */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        <button 
+          className="sidebar-collapse-btn"
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {sidebarCollapsed ? '→' : '←'}
+        </button>
+        
         <div className="sidebar-header">
           <div className="sidebar-logo">✉</div>
-          <div>
-            <div className="sidebar-title">uOttaMail</div>
-            <div className="sidebar-subtitle">AI Inbox Firewall</div>
-          </div>
+          {!sidebarCollapsed && (
+            <div>
+              <div className="sidebar-title">uOttaMail</div>
+              <div className="sidebar-subtitle">AI Inbox Firewall</div>
+            </div>
+          )}
         </div>
 
         <nav className="sidebar-nav">
-          <button className={`nav-item ${activeView === 'inbox' ? 'active' : ''}`} onClick={() => setActiveView('inbox')}>📥 Inbox</button>
-          <button className={`nav-item ${activeView === 'actions' ? 'active' : ''}`} onClick={() => setActiveView('actions')}>✅ Actions</button>
-          <button className="nav-item">⭐ Starred</button>
-          <button className="nav-item">📤 Sent</button>
-          <button className="nav-item">🚫 Spam</button>
+          <button className={`nav-item ${activeView === 'inbox' ? 'active' : ''}`} onClick={() => setActiveView('inbox')}>
+            📥 {!sidebarCollapsed && 'Inbox'}
+          </button>
+          <button className={`nav-item ${activeView === 'actions' ? 'active' : ''}`} onClick={() => setActiveView('actions')}>
+            ✅ {!sidebarCollapsed && 'Actions'}
+          </button>
+          <button className="nav-item">⭐ {!sidebarCollapsed && 'Starred'}</button>
+          <button className="nav-item">📤 {!sidebarCollapsed && 'Sent'}</button>
+          <button className="nav-item">🚫 {!sidebarCollapsed && 'Spam'}</button>
         </nav>
 
         <button
@@ -417,12 +469,14 @@ export default function App() {
             setToken('')
           }}
         >
-          ↪ Logout
+          ↪ {!sidebarCollapsed && 'Logout'}
         </button>
 
-        <div className="sidebar-footer">
-          Powered by Solace Agent Mesh
-        </div>
+        {!sidebarCollapsed && (
+          <div className="sidebar-footer">
+            Powered by Solace Agent Mesh
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}
@@ -439,123 +493,128 @@ export default function App() {
               </button>
             </header>
 
-            {/* AI Search Bar */}
-            <div className="ai-search-container" style={{ padding: '0 2rem' }}>
-              <div className="ai-search-wrapper">
-                <input
-                  type="text"
-                  className="ai-search-input"
-                  placeholder={aiEnabled ? "Search emails... (press Enter to ask AI)" : "Search emails..."}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={handleSearchKeyDown}
-                />
-                <span className="ai-search-icon">🔍</span>
-                <button 
-                  className={`ai-search-sparkle ${aiEnabled ? 'active' : ''}`}
-                  onClick={() => setAiEnabled(!aiEnabled)}
-                  title={aiEnabled ? 'AI search enabled - press Enter to ask' : 'AI search disabled'}
-                >
-                  <span className="sparkle-icon">✨</span>
-                  AI
-                </button>
-              </div>
-
-              {/* AI Response */}
-              {(isAiLoading || aiResponse) && aiEnabled && (
-                <div className="ai-chat-response">
-                  <div className="ai-chat-header">
-                    <span className="sparkle-icon">✨</span>
-                    AI Assistant
-                  </div>
-                  {isAiLoading ? (
-                    <div className="ai-chat-loading">
-                      <span>Thinking</span>
-                      <div className="dots">
-                        <div className="dot"></div>
-                        <div className="dot"></div>
-                        <div className="dot"></div>
-                      </div>
-                    </div>
-                  ) : aiResponse ? (
-                    <>
-                      <div 
-                        className="ai-chat-text" 
-                        dangerouslySetInnerHTML={{ 
-                          __html: formatAiResponse(aiResponse.message || aiResponse.response || 'Processing your query...', emails) 
-                        }}
-                        onClick={(e) => {
-                          // Handle clicks on email ID links
-                          if (e.target.classList.contains('ai-email-id-link')) {
-                            const emailId = parseInt(e.target.dataset.emailId);
-                            if (emailId) setSelectedId(emailId);
-                          }
-                        }}
-                      />
-                      {/* Show related emails if any match subjects mentioned */}
-                      {(() => {
-                        const responseText = aiResponse.message || aiResponse.response || '';
-                        const mentionedEmails = emails.filter(e => 
-                          responseText.toLowerCase().includes(e.subject.toLowerCase().substring(0, 20))
-                        ).slice(0, 5);
-                        return mentionedEmails.length > 0 ? (
-                          <div className="ai-chat-emails">
-                            <div className="ai-chat-emails-title">📧 Related Emails:</div>
-                            {mentionedEmails.map(e => (
-                              <span 
-                                key={e.id} 
-                                className="ai-chat-email-link"
-                                onClick={() => setSelectedId(e.id)}
-                              >
-                                {e.subject.substring(0, 40)}{e.subject.length > 40 ? '...' : ''}
-                              </span>
-                            ))}
-                          </div>
-                        ) : null;
-                      })()}
-                    </>
-                  ) : null}
-                </div>
-              )}
-
-              {/* Text Search Results */}
-              {searchQuery && searchResults.length > 0 && (
-                <div className="search-results">
-                  <div className="search-results-header">
-                    <span>📋 {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}</span>
-                    {isSearching && <span style={{ fontSize: '0.75rem' }}>Searching...</span>}
-                  </div>
-                  {searchResults.map((email) => (
-                    <div 
-                      key={email.id} 
-                      className="search-result-item"
-                      onClick={() => { setSelectedId(email.id); }}
-                    >
-                      <div className="search-result-subject">{email.subject}</div>
-                      <div className="search-result-meta">
-                        From: {email.sender_username || 'unknown'} • {email.spam_label} • {email.priority || 'unrated'}
-                      </div>
-                      <div className="search-result-snippet">
-                        {email.summary || email.body?.substring(0, 100) + '...'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* No results */}
-              {searchQuery && !isSearching && searchResults.length === 0 && (
-                <div className="search-results">
-                  <div className="no-results">
-                    No emails match "{searchQuery}"
-                  </div>
-                </div>
-              )}
-            </div>
-
             <div className="inbox-container">
               {/* Email List */}
-              <div className="email-list-pane">
+              <div className="email-list-pane" style={{ width: showEmailDetail ? emailPaneWidth : '100%', maxWidth: showEmailDetail ? emailPaneWidth : '100%' }}>
+                {/* AI Search Bar - sticky at top */}
+                <div className="ai-search-container">
+                  <div className="ai-search-wrapper">
+                    <input
+                      type="text"
+                      className="ai-search-input"
+                      placeholder={aiEnabled ? "Search emails... (press Enter to ask AI)" : "Search emails..."}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={handleSearchKeyDown}
+                    />
+                    <span className="ai-search-icon">🔍</span>
+                    <button 
+                      className={`ai-search-sparkle ${aiEnabled ? 'active' : ''}`}
+                      onClick={() => setAiEnabled(!aiEnabled)}
+                      title={aiEnabled ? 'AI search enabled - press Enter to ask' : 'AI search disabled'}
+                    >
+                      <span className="sparkle-icon">✨</span>
+                      AI
+                    </button>
+                  </div>
+                </div>
+
+                {/* AI Response - scrolls with list */}
+                {(isAiLoading || aiResponse) && aiEnabled && (
+                  <div className="ai-chat-response">
+                    <div className="ai-chat-header">
+                      <span className="sparkle-icon">✨</span>
+                      AI Assistant
+                      <button 
+                        className="close-btn"
+                        onClick={() => { setAiResponse(null); setIsAiLoading(false); }}
+                        title="Close AI response"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {isAiLoading ? (
+                      <div className="ai-chat-loading">
+                        <span>Thinking</span>
+                        <div className="dots">
+                          <div className="dot"></div>
+                          <div className="dot"></div>
+                          <div className="dot"></div>
+                        </div>
+                      </div>
+                    ) : aiResponse ? (
+                      <>
+                        <div 
+                          className="ai-chat-text" 
+                          dangerouslySetInnerHTML={{ 
+                            __html: formatAiResponse(aiResponse.message || aiResponse.response || 'Processing your query...', emails) 
+                          }}
+                          onClick={(e) => {
+                            // Handle clicks on email ID links
+                            if (e.target.classList.contains('ai-email-id-link')) {
+                              const emailId = parseInt(e.target.dataset.emailId);
+                              if (emailId) setSelectedId(emailId);
+                            }
+                          }}
+                        />
+                        {/* Show related emails if any match subjects mentioned */}
+                        {(() => {
+                          const responseText = aiResponse.message || aiResponse.response || '';
+                          const mentionedEmails = emails.filter(e => 
+                            responseText.toLowerCase().includes(e.subject.toLowerCase().substring(0, 20))
+                          ).slice(0, 5);
+                          return mentionedEmails.length > 0 ? (
+                            <div className="ai-chat-emails">
+                              <div className="ai-chat-emails-title">📧 Related Emails:</div>
+                              {mentionedEmails.map(e => (
+                                <span 
+                                  key={e.id} 
+                                  className="ai-chat-email-link"
+                                  onClick={() => setSelectedId(e.id)}
+                                >
+                                  {e.subject.substring(0, 40)}{e.subject.length > 40 ? '...' : ''}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()}
+                      </>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Text Search Results */}
+                {searchQuery && searchResults.length > 0 && (
+                  <div className="search-results">
+                    <div className="search-results-header">
+                      <span>📋 {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}</span>
+                      <button 
+                        className="close-btn"
+                        onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                        title="Clear search"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {searchResults.map((email) => (
+                      <div 
+                        key={email.id} 
+                        className="search-result-item"
+                        onClick={() => { setSelectedId(email.id); }}
+                      >
+                        <div className="search-result-subject">{email.subject}</div>
+                        <div className="search-result-meta">
+                          From: {email.sender_username || 'unknown'} • {email.spam_label} • {email.priority || 'unrated'}
+                        </div>
+                        <div className="search-result-snippet">
+                          {email.summary || email.body?.substring(0, 100) + '...'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Email List Items */}
                 {emails.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
                 No emails found.
@@ -587,58 +646,74 @@ export default function App() {
             )}
           </div>
 
+              {/* Resizer */}
+              {showEmailDetail && (
+                <div 
+                  className="pane-resizer"
+                  onMouseDown={handleMouseDown}
+                />
+              )}
+
           {/* Email Detail / Reading Pane */}
-          <div className="email-detail-pane">
-            {!selected ? (
-              <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
-                <p>Select an email to view details</p>
-              </div>
-            ) : (
-              <div>
-                <div className="detail-header">
-                  <h2 className="detail-subject">{selected.subject}</h2>
-                  <div className="detail-meta">
-                    From: <span style={{ color: 'var(--text-primary)' }}>{selected.sender_username}</span>
+          {showEmailDetail && (
+            <div className="email-detail-pane">
+              <button 
+                className="close-detail-btn"
+                onClick={() => { setShowEmailDetail(false); setSelectedId(null); }}
+                title="Close email detail"
+              >
+                ✕
+              </button>
+              {!selected ? (
+                <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                  <p>Select an email to view details</p>
+                </div>
+              ) : (
+                <div>
+                  <div className="detail-header">
+                    <h2 className="detail-subject">{selected.subject}</h2>
+                    <div className="detail-meta">
+                      From: <span style={{ color: 'var(--text-primary)' }}>{selected.sender_username}</span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="detail-body">
-                  {selected.body}
-                </div>
+                  <div className="detail-body">
+                    {selected.body}
+                  </div>
 
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '2rem' }}>
-                  <h3 style={{ fontSize: '1.2rem' }}>AI Analysis</h3>
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '2rem' }}>
+                    <h3 style={{ fontSize: '1.2rem' }}>AI Analysis</h3>
 
-                  <div className="ai-cards-grid">
-                    <div className="ai-card">
-                      <span className="ai-label">Summary</span>
-                      <div className="ai-value">
-                        {selected.summary || 'Processing...'}
+                    <div className="ai-cards-grid">
+                      <div className="ai-card">
+                        <span className="ai-label">Summary</span>
+                        <div className="ai-value">
+                          {selected.summary || 'Processing...'}
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="ai-card">
-                      <span className="ai-label">Action Items</span>
-                      <div className="action-items-list">
-                        {selected.action_items && Array.isArray(selected.action_items) && selected.action_items.length > 0
-                          ? selected.action_items.map((item, i) => (
-                            <label key={i} className={`action-item-row ${item.done ? 'done' : ''}`}>
-                              <input
-                                type="checkbox"
-                                checked={item.done || false}
-                                onChange={() => authed.toggleActionItem(selected.id, i)}
-                              />
-                              <div className="action-item-content">
-                                <span className="action-item-text">{typeof item === 'object' ? item.text : item}</span>
-                                {item.due && <span className="action-item-due">📅 {item.due}</span>}
-                                {item.assignee && <span className="action-item-assignee">👤 {item.assignee}</span>}
-                              </div>
-                            </label>
-                          ))
-                          : <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No action items</div>
-                        }
+                      <div className="ai-card">
+                        <span className="ai-label">Action Items</span>
+                        <div className="action-items-list">
+                          {selected.action_items && Array.isArray(selected.action_items) && selected.action_items.length > 0
+                            ? selected.action_items.map((item, i) => (
+                              <label key={i} className={`action-item-row ${item.done ? 'done' : ''}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={item.done || false}
+                                  onChange={() => authed.toggleActionItem(selected.id, i)}
+                                />
+                                <div className="action-item-content">
+                                  <span className="action-item-text">{typeof item === 'object' ? item.text : item}</span>
+                                  {item.due && <span className="action-item-due">📅 {item.due}</span>}
+                                  {item.assignee && <span className="action-item-assignee">👤 {item.assignee}</span>}
+                                </div>
+                              </label>
+                            ))
+                            : <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>No action items</div>
+                          }
+                        </div>
                       </div>
-                    </div>
 
                     <div className="ai-card">
                       <span className="ai-label">Classification</span>
@@ -748,6 +823,18 @@ export default function App() {
               </div>
             )}
           </div>
+          )}
+          
+          {/* Button to show email detail when hidden */}
+          {!showEmailDetail && (
+            <button 
+              className="show-detail-btn"
+              onClick={() => setShowEmailDetail(true)}
+              title="Show email detail"
+            >
+              ← Show Detail
+            </button>
+          )}
         </div>
           </>
         ) : activeView === 'actions' ? (
