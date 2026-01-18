@@ -5,7 +5,8 @@ from django.db import models
 class Email(models.Model):
     PRIORITY_CHOICES = [
         ('urgent', 'Urgent'),
-        ('normal', 'Normal'),
+        ('high', 'High'),
+        ('medium', 'Medium'),
         ('low', 'Low'),
     ]
 

@@ -34,7 +34,7 @@ export default function App() {
   const [body, setBody] = useState('')
 
   // Derive selected email from ID
-  const selected = useMemo(() => 
+  const selected = useMemo(() =>
     selectedId ? emails.find(e => e.id === selectedId) : null,
     [selectedId, emails]
   )
@@ -110,115 +110,242 @@ export default function App() {
     alert('Sent')
   }
 
+  const [isComposeOpen, setIsComposeOpen] = useState(false)
+
   if (!token) {
     return (
-      <div style={{ maxWidth: 520, margin: '40px auto', fontFamily: 'system-ui' }}>
-        <h1>AI Inbox Firewall</h1>
-        <p>Internal demo email system with Solace Agent Mesh agents.</p>
+      <div className="auth-container">
+        <div className="auth-card">
+          <div className="sidebar-logo" style={{ margin: '0 auto 1.5rem auto' }}>✉</div>
+          <h1 className="auth-title">AI Inbox</h1>
+          <p className="auth-subtitle">Next-gen firewall powered by Solace Agent Mesh</p>
 
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-          <button onClick={() => setMode('login')} disabled={mode === 'login'}>Login</button>
-          <button onClick={() => setMode('register')} disabled={mode === 'register'}>Register</button>
+          <div className="auth-tabs">
+            <button
+              className={mode === 'login' ? 'active' : ''}
+              onClick={() => setMode('login')}
+            >
+              Log In
+            </button>
+            <button
+              className={mode === 'register' ? 'active' : ''}
+              onClick={() => setMode('register')}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          <div className="auth-form">
+            <input
+              placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+            <input
+              placeholder="Password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <button onClick={doAuth}>
+              {mode === 'register' ? 'Create Account' : 'Access Inbox'}
+            </button>
+          </div>
         </div>
-
-        <input
-          placeholder="username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          style={{ width: '100%', padding: 8, marginBottom: 8 }}
-        />
-        <input
-          placeholder="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          style={{ width: '100%', padding: 8, marginBottom: 16 }}
-        />
-        <button onClick={doAuth} style={{ padding: 10, width: '100%' }}>
-          {mode === 'register' ? 'Register + Login' : 'Login'}
-        </button>
       </div>
     )
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', height: '100vh', fontFamily: 'system-ui' }}>
-      <div style={{ borderRight: '1px solid #eee', padding: 12, overflowY: 'auto' }}>
-        <h2 style={{ marginTop: 0 }}>Inbox</h2>
+    <div className="app-container">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <div className="sidebar-logo">✉</div>
+          <div>
+            <div className="sidebar-title">Inbox</div>
+            <div className="sidebar-subtitle">Firewall MVP</div>
+          </div>
+        </div>
+
+        <nav className="sidebar-nav">
+          <button className="nav-item active">📥 Inbox</button>
+          <button className="nav-item">⭐ Starred</button>
+          <button className="nav-item">📤 Sent</button>
+          <button className="nav-item">🚫 Spam</button>
+        </nav>
+
         <button
+          className="nav-item"
+          style={{ marginTop: 'auto', color: '#ef4444' }}
           onClick={() => {
             localStorage.removeItem('jwt')
             setToken('')
           }}
         >
-          Logout
+          ↪ Logout
         </button>
 
-        <h3>Compose</h3>
-        <input placeholder="to username" value={toUser} onChange={(e) => setToUser(e.target.value)} style={{ width: '100%', padding: 8, marginBottom: 8 }} />
-        <input placeholder="subject" value={subject} onChange={(e) => setSubject(e.target.value)} style={{ width: '100%', padding: 8, marginBottom: 8 }} />
-        <textarea placeholder="body" value={body} onChange={(e) => setBody(e.target.value)} style={{ width: '100%', padding: 8, marginBottom: 8, minHeight: 80 }} />
-        <button onClick={sendEmail} style={{ width: '100%', padding: 10 }}>Send</button>
+        <div className="sidebar-footer">
+          Powered by Solace Agent Mesh
+        </div>
+      </aside>
 
-        <hr />
+      {/* Main Content */}
+      <main className="main-content">
+        <header className="inbox-header">
+          <div>
+            <h2 className="inbox-title">Inbox</h2>
+            <p className="inbox-subtitle">Realtime email stream with AI priority classification</p>
+          </div>
+          <button onClick={() => setIsComposeOpen(!isComposeOpen)}>
+            + New Message
+          </button>
+        </header>
 
-        {emails.map((e) => (
-          <div
-            key={e.id}
-            onClick={() => setSelectedId(e.id)}
-            style={{
-              padding: 10,
-              marginBottom: 8,
-              border: '1px solid #eee',
-              cursor: 'pointer',
-              background: selected?.id === e.id ? '#f5f5f5' : 'white'
-            }}
-          >
-            <div style={{ fontWeight: 600 }}>{e.subject}</div>
-            <div style={{ fontSize: 12, opacity: 0.8 }}>From: {e.sender_username || 'unknown'}</div>
-            <div style={{ fontSize: 12, marginTop: 6 }}>
-              <span>Spam: {e.spam_label || '...'}</span>
-              {'  |  '}
-              <span>Priority: {e.priority || '...'}</span>
+        <div className="inbox-container">
+          {/* Email List */}
+          <div className="email-list-pane">
+            {emails.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                No emails found.
+              </div>
+            ) : (
+              emails.map((e) => (
+                <div
+                  key={e.id}
+                  onClick={() => setSelected(e)}
+                  className={`email-row ${selected?.id === e.id ? 'selected' : ''}`}
+                >
+                  <div className={`email-dot priority-${(e.priority || 'Medium').toLowerCase()}`}></div>
+                  <div className="email-meta">
+                    <div className="email-sender">{e.sender_username || 'unknown'}</div>
+                    <div className="email-subject">{e.subject}</div>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      <span className={`email-badge spam-${e.spam_label}`}>
+                        {e.spam_label || 'SCANNING'}
+                      </span>
+                      {e.priority && (
+                        <span className="email-badge">
+                          {e.priority}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Email Detail / Reading Pane */}
+          <div className="email-detail-pane">
+            {!selected ? (
+              <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                <p>Select an email to view details</p>
+              </div>
+            ) : (
+              <div>
+                <div className="detail-header">
+                  <h2 className="detail-subject">{selected.subject}</h2>
+                  <div className="detail-meta">
+                    From: <span style={{ color: 'var(--text-primary)' }}>{selected.sender_username}</span>
+                  </div>
+                </div>
+
+                <div className="detail-body">
+                  {selected.body}
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '2rem' }}>
+                  <h3 style={{ fontSize: '1.2rem' }}>AI Analysis</h3>
+
+                  <div className="ai-cards-grid">
+                    <div className="ai-card">
+                      <span className="ai-label">Summary</span>
+                      <div className="ai-value" style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
+                        {selected.summary || 'Processing...'}
+                      </div>
+                    </div>
+
+                    <div className="ai-card">
+                      <span className="ai-label">Action Items</span>
+                      <ul style={{ paddingLeft: '1.2rem', margin: '0.5rem 0', fontSize: '0.9rem' }}>
+                        {selected.action_items && Array.isArray(selected.action_items)
+                          ? selected.action_items.map((item, i) => (
+                            <li key={i}>
+                              {typeof item === 'object' ? JSON.stringify(item) : item}
+                            </li>
+                          ))
+                          : <li>{JSON.stringify(selected.action_items || 'None')}</li>
+                        }
+                      </ul>
+                    </div>
+
+                    <div className="ai-card">
+                      <span className="ai-label">Classification</span>
+                      <div>
+                        Spam: <b style={{ color: selected.spam_label === 'SPAM' ? '#fca5a5' : '#86efac' }}>{selected.spam_label}</b>
+                      </div>
+                      <div style={{ marginTop: 8 }}>
+                        <b>Priority: {selected.priority || 'Normal'}</b>
+                        {selected.priority_reason && (
+                          <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                            {selected.priority_reason}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '2rem' }}>
+                    <button className="secondary" onClick={authed.refreshEmails} style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
+                      Refresh Analysis
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </main>
+
+      {/* Compose Modal */}
+      {isComposeOpen && (
+        <div className="compose-modal">
+          <div className="compose-header">
+            <span>New Message</span>
+            <button
+              onClick={() => setIsComposeOpen(false)}
+              style={{ background: 'transparent', padding: 0, width: 24 }}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="compose-body">
+            <input
+              placeholder="To: username"
+              value={toUser}
+              onChange={(e) => setToUser(e.target.value)}
+            />
+            <input
+              placeholder="Subject"
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+            />
+            <textarea
+              placeholder="Write your message..."
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              style={{ minHeight: 150 }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => { sendEmail(); setIsComposeOpen(false); }}>
+                Send Message
+              </button>
             </div>
           </div>
-        ))}
-      </div>
-
-      <div style={{ padding: 16, overflowY: 'auto' }}>
-        {!selected ? (
-          <p>Select an email.</p>
-        ) : (
-          <div>
-            <h2 style={{ marginTop: 0 }}>{selected.subject}</h2>
-            <p style={{ marginTop: 0, opacity: 0.8 }}>From: {selected.sender_username || 'unknown'}</p>
-
-            <h3>Body</h3>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{selected.body}</pre>
-
-            <h3>Agent Outputs</h3>
-            <p><b>Spam</b>: {selected.spam_label || '...'} {selected.spam_reason ? `(${selected.spam_reason})` : ''}</p>
-            <p><b>Priority</b>: {selected.priority || '...'} {selected.priority_reason ? `(${selected.priority_reason})` : ''}</p>
-            <p><b>Summary</b>:</p>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{selected.summary || '...'}</pre>
-            <p><b>Action items</b>:</p>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{selected.action_items ? JSON.stringify(selected.action_items, null, 2) : '...'}</pre>
-            <p><b>Tone</b>: {selected.tone_emotion || '...'} {selected.tone_confidence ? `(${selected.tone_confidence})` : ''}</p>
-            {selected.tone_explanation && <p style={{ fontStyle: 'italic', opacity: 0.8 }}>{selected.tone_explanation}</p>}
-            
-            <p><b>URL Security</b>: {selected.url_scan_verdict || '...'} {selected.url_scan_threat_level ? `(${selected.url_scan_threat_level})` : ''}</p>
-            {selected.url_scan_summary && <p style={{ opacity: 0.8 }}>{selected.url_scan_summary}</p>}
-            {selected.url_scan_details && <p style={{ fontStyle: 'italic', opacity: 0.8 }}>{selected.url_scan_details}</p>}
-            {(selected.url_scan_malicious_count > 0 || selected.url_scan_suspicious_count > 0) && (
-              <p style={{ color: selected.url_scan_malicious_count > 0 ? '#d32f2f' : '#ff9800', fontWeight: 600 }}>
-                ⚠️ {selected.url_scan_malicious_count || 0} malicious, {selected.url_scan_suspicious_count || 0} suspicious
-              </p>
-            )}
-
-            <button onClick={authed.refreshEmails}>Refresh</button>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
