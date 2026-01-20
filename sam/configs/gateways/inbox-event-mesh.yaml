@@ -8,8 +8,7 @@
 
 log:
   stdout_log_level: INFO
-  log_file_level: DEBUG
-  log_file: inbox-event-mesh.log
+  log_file_level: NONE
 
 # Use the shared_config.yaml file for broker and model settings
 !include ../shared_config.yaml
