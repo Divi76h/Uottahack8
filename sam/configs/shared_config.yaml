@@ -10,14 +10,10 @@ shared_config:
   - models:
       planning: &planning_model
         model: ${LLM_SERVICE_PLANNING_MODEL_NAME}
-        api_base: ${LLM_SERVICE_ENDPOINT}
-        api_key: ${LLM_SERVICE_API_KEY}
         parallel_tool_calls: true
         cache_strategy: "5m"
       general: &general_model
         model: ${LLM_SERVICE_GENERAL_MODEL_NAME}
-        api_base: ${LLM_SERVICE_ENDPOINT}
-        api_key: ${LLM_SERVICE_API_KEY}
         cache_strategy: "5m"
 
   - services:

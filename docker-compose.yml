@@ -95,3 +95,5 @@ services:
 
 volumes:
   pgdata:
+    external: true
+    name: ai-inbox-firewall_pgdata

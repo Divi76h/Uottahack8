@@ -24,14 +24,15 @@ echo "[SAM] Using CLI: $SAM_CLI"
 # Optional: show version
 "$SAM_CLI" --version || true
 
-# Install the Event Mesh Gateway plugin (idempotent; safe to run on every start)
-# The docs install this via "sam plugin add ... --plugin sam-event-mesh-gateway"
-# so we do the same at container startup.
-if python -c "import sam_event_mesh_gateway" >/dev/null 2>&1; then
-  echo "[SAM] sam_event_mesh_gateway already installed, skipping plugin add."
-else
-  echo "[SAM] Installing Event Mesh Gateway plugin..."
-  "$SAM_CLI" plugin add _inbox_event_mesh_gateway --plugin sam-event-mesh-gateway
+# Install the Event Mesh Gateway Python package directly (without sam plugin add)
+# This avoids generating the template config file each time
+echo "[SAM] Installing sam_event_mesh_gateway Python package..."
+pip install "git+https://github.com/SolaceLabs/solace-agent-mesh-core-plugins@main#subdirectory=sam-event-mesh-gateway"
+
+# Clean up any auto-generated gateway template file (we use our own config)
+if [ -f "configs/gateways/inbox-event-mesh-gateway.yaml" ]; then
+  echo "[SAM] Removing auto-generated gateway template file..."
+  rm -f "configs/gateways/inbox-event-mesh-gateway.yaml"
 fi
 
 # Run agents + gateway configs
